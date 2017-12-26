@@ -44,6 +44,8 @@
 extern "C" {
 #endif
 
+#include <fcntl.h>
+
 /* constants -----------------------------------------------------------------*/
 
 #define VER_RTKLIB  "2.4.2"             /* library version */
@@ -1207,6 +1209,10 @@ typedef struct {        /* stream server type */
     lock_t lock;        /* lock flag */
 } strsvr_t;
 
+typedef struct {
+	int fb_fd;  		/* the frame buffer device handle */
+	char buf[16][12]; 	/* the frame buffer display content */
+} oled_t;
 typedef struct {        /* RTK server type */
     int state;          /* server state (0:stop,1:running) */
     int cycle;          /* processing cycle (ms) */
@@ -1242,6 +1248,7 @@ typedef struct {        /* RTK server type */
     int cputime;        /* CPU time (ms) for a processing cycle */
     int prcout;         /* missing observation data count */
     lock_t lock;        /* lock flag */
+	oled_t oled;		/* oled display, 96x16 dots */
 } rtksvr_t;
 
 /* global variables ----------------------------------------------------------*/
@@ -1721,6 +1728,12 @@ extern int lexeph2pos(gtime_t time, int sat, const nav_t *nav, double *rs,
 extern int lexioncorr(gtime_t time, const nav_t *nav, const double *pos,
                       const double *azel, double *delay, double *var);
 
+/* OLED display function -----------------------------------------------------*/
+extern void OLEDRefresh(oled_t *oled);
+extern void OLEDchar(oled_t *oled, int x, int y, char c);
+extern void OLEDstring(oled_t *oled, int x, int y, char *str);
+extern void OLEDclear(oled_t *oled);
+extern void OLEDline(oled_t *oled, int line);
 #ifdef __cplusplus
 }
 #endif

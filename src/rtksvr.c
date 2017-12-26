@@ -55,7 +55,7 @@ static void writesol(rtksvr_t *svr, int index)
 {
     solopt_t solopt=solopt_default;
     unsigned char buff[1024];
-    int i,n;
+    int i,j, n;
     
     tracet(4,"writesol: index=%d\n",index);
     
@@ -85,6 +85,43 @@ static void writesol(rtksvr_t *svr, int index)
         svr->solbuf[svr->nsol++]=svr->rtk.sol;
         rtksvrunlock(svr);
     }
+	/* display stream conditions to display */
+	char str[20];
+	sprintf(str, "%4.1f %4.1fk/s\n", svr->stream[0].inr/1000.0,svr->stream[1].inr/1000.0);
+	
+	OLEDstring(&svr->oled, 0, 1, str);
+	
+	switch (svr->solbuf[0].stat)
+	{
+		case 0:
+			OLEDstring(&svr->oled, 0, 0, "ACTIVE: --- ");
+			break;
+		case 1:
+			OLEDstring(&svr->oled, 0, 0, "ACTIVE: FIX ");
+			break;
+		case 2:
+			OLEDstring(&svr->oled, 0, 0, "ACTIVE:FLOAT");
+			break;
+		case 3:
+			OLEDstring(&svr->oled, 0, 0, "ACTIVE: SBAS");
+			break;
+		case 4:
+			OLEDstring(&svr->oled, 0, 0, "ACTIVE: DGPS");
+			break;
+		case 5:
+			OLEDstring(&svr->oled, 0, 0, "ACTIVE:SINGLE");
+			break;
+		case 6:
+			OLEDstring(&svr->oled, 0, 0, "ACTIVE: PPP ");
+			break;
+		case 7:
+			OLEDstring(&svr->oled, 0, 0, "ACTIVE:     ");
+			break;
+		default:
+			break;
+	}
+	OLEDRefresh(&svr->oled);
+			
 }
 /* update navigation data ----------------------------------------------------*/
 static void updatenav(nav_t *nav)
@@ -394,7 +431,7 @@ static void *rtksvrthread(void *arg)
     
     for (cycle=0;svr->state;cycle++) {
         tick=tickget();
-        
+    
         for (i=0;i<3;i++) {
             p=svr->buff[i]+svr->nb[i]; q=svr->buff[i]+svr->buffsize;
             
@@ -457,6 +494,7 @@ static void *rtksvrthread(void *arg)
         if (svr->rtk.sol.stat==SOLQ_NONE&&cycle%(1000/svr->cycle)==0) {
             writesol(svr,0);
         }
+
         /* send nmea request to base/nrtk input stream */
         if (svr->nmeacycle>0&&(int)(tick-ticknmea)>=svr->nmeacycle) {
             if (svr->stream[1].state==1) {
@@ -551,6 +589,15 @@ extern int rtksvrinit(rtksvr_t *svr)
     }
     for (i=0;i<MAXSTRRTK;i++) strinit(svr->stream+i);
     
+	/* initialize oled structure */
+	svr->oled.fb_fd = open("/dev/fb0",O_RDWR);
+	for (i=0; i< 8; i ++ )
+	{
+		for (j=0; j< 12; j ++ )
+			svr->oled.buf[2*i][j] =0xAA;
+	}
+	OLEDRefresh(&svr->oled);
+	
     initlock(&svr->lock);
     
     return 1;
@@ -570,6 +617,9 @@ extern void rtksvrfree(rtksvr_t *svr)
     for (i=0;i<3;i++) for (j=0;j<MAXOBSBUF;j++) {
         free(svr->obs[i][j].data);
     }
+	
+	OLEDclear(&svr->oled);
+	close(svr->oled.fb_fd);
 }
 /* lock/unlock rtk server ------------------------------------------------------
 * lock/unlock rtk server
@@ -646,6 +696,8 @@ extern int rtksvrstart(rtksvr_t *svr, int cycle, int buffsize, int *strs,
     rtkfree(&svr->rtk);
     rtkinit(&svr->rtk,prcopt);
     
+
+	
     for (i=0;i<3;i++) { /* input/log streams */
         svr->nb[i]=svr->npb[i]=0;
         if (!(svr->buff[i]=(unsigned char *)malloc(buffsize))||
@@ -726,6 +778,10 @@ extern int rtksvrstart(rtksvr_t *svr, int cycle, int buffsize, int *strs,
         for (i=0;i<MAXSTRRTK;i++) strclose(svr->stream+i);
         return 0;
     }
+	/* update display for starting the server */
+	OLEDclear(&svr->oled);
+	OLEDstring(&svr->oled, 2,0,"STARTED");
+	OLEDRefresh(&svr->oled);
     return 1;
 }
 /* stop rtk server -------------------------------------------------------------
@@ -760,6 +816,10 @@ extern void rtksvrstop(rtksvr_t *svr, char **cmds)
 #else
     pthread_join(svr->thread,NULL);
 #endif
+	/* update display for starting the server */
+	OLEDclear(&svr->oled);
+	OLEDstring(&svr->oled, 2,0,"STOPPED");
+	OLEDRefresh(&svr->oled);
 }
 /* open output/log stream ------------------------------------------------------
 * open output/log stream

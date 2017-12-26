@@ -1253,6 +1253,7 @@ static void cmdshell(vt_t *vt)
                 vt_printf(vt,"shutdown %s process ? (y/n): ",PRGNAME);
                 if (!vt_gets(vt,buff,sizeof(buff))||vt->brk) continue;
                 if (toupper((int)buff[0])=='Y') intflg=1;
+				
                 break;
             default:
                 vt_printf(vt,"unknown command: %s.\n",args[0]);
@@ -1408,6 +1409,12 @@ int main(int argc, char **argv)
         fprintf(stderr,"monitor port open error: %d\n",moniport);
         return -1;
     }
+	
+	/* initialize status on the display */
+	OLEDclear(&svr.oled);
+	OLEDstring(&svr.oled, 2,0,"STOPPED");
+	OLEDRefresh(&svr.oled);
+	
     /* start rtk server */
     if (start&&!startsvr(&vt)) return -1;
     
@@ -1416,7 +1423,10 @@ int main(int argc, char **argv)
     signal(SIGUSR2,sigshut);
     signal(SIGHUP ,SIG_IGN);
     signal(SIGPIPE,SIG_IGN);
-    
+	
+	
+	
+	
     while (!intflg) {
         
         /* open console */
@@ -1433,7 +1443,7 @@ int main(int argc, char **argv)
     }
     /* stop rtk server */
     stopsvr(&vt);
-    
+    	
     if (moniport>0) closemoni();
     
     if (outstat>0) rtkclosestat();
@@ -1444,5 +1454,7 @@ int main(int argc, char **argv)
     if (!savenav(NAVIFILE,&svr.nav)) {
         fprintf(stderr,"navigation data save error: %s\n",NAVIFILE);
     }
+	/* free up rtk server */
+	rtksvrfree(&svr);
     return 0;
 }
